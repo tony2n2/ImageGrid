@@ -1,0 +1,47 @@
+.imageGridsContainer {
+  white-space: nowrap;
+  min-width: 100%;
+}
+
+.grid {
+  display: inline-block;
+  position: relative;
+  margin: 10px;
+  left: 50px;
+  opacity: 0;
+}
+
+.imageTile {
+  position: absolute;
+}
+
+.images {
+  height: 100%;
+  width: 100%;
+  left: 50%;
+  top: 50%;
+  position: relative;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+}
+
+.div-original {
+  display: none;
+}
+
+.div-overlay {
+  display: none;
+  opacity: 0;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+.image-overlay {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background-color: rgba(0,0,0,.7);
+}

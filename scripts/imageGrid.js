@@ -5,6 +5,9 @@
  * There seems to be ambiguity with how some images should be placed, should ask
  * the designer for clarification.
  *
+ * Revision: Experimental: All DOM elements are now created with React components,
+ * still lot of work to do to optimize. Like event handling and animation.
+ *
  * Further improvements:
  * - the 3d representation of the grids can be wraped around by a object and
  * 		only exposing limited legal operations.
@@ -34,7 +37,7 @@
   * @param  {Int} argGridWidth   Width of a grid
   * @param  {Int} argGrindHeight Height of a grid
   */
- function imageGrid(argImages, argColumns, argRows, argGridWidth, argGrindHeight) {
+ function imageGrid(argImages, argColumns, argRows, argGridWidth, argGridHeight) {
    const cImageGapSize = 6;
    const cGridGapSize = 20;
 
@@ -44,7 +47,7 @@
    }
    var provider = ImageProvider(argImages);
 
-   var gridPlanner = ImageGridPlanner(provider, argColumns, argRows, argGridWidth, argGrindHeight, cImageGapSize);
+   var gridPlanner = ImageGridPlanner(provider, argColumns, argRows, argGridWidth, argGridHeight, cImageGapSize);
    const grids = gridPlanner.plan();
 
    if (grids === undefined) {
@@ -55,9 +58,148 @@
   //  Uncomment to see the array representation in the console log.
    debugGrid(grids);
 
-   var presenter = ImageGridPresenter(grids, provider, argColumns, argRows, argGridWidth, argGrindHeight, cImageGapSize, cGridGapSize);
-   presenter.showGrids();
- }
+   //width and height of grid inclusive the margin between each tile.
+   var gridActualWidth = argGridWidth + (argColumns - 1) * cImageGapSize;
+   var gridActualHeight = argGridHeight + (argRows - 1) * cImageGapSize;
+   var singleTileWidth = Math.round(argGridWidth / argColumns);
+   var singleTileHeight = Math.round(argGridHeight / argRows);
+
+   ReactDOM.render(
+     <div>
+       <ImageGridsContainerComponent
+        grids = {grids}
+        gridActualWidth = {gridActualWidth}
+        gridActualHeight = {gridActualHeight}
+        singleTileHeight = {singleTileHeight}
+        singleTileWidth = {singleTileWidth}
+        imageGapSize = {cImageGapSize}
+       />
+      <ImageOverlayContainerComponent />
+     </div>,
+     document.getElementById('content')
+   );
+  //  var presenter = ImageGridPresenter(grids, provider, argColumns, argRows, argGridWidth, argGrindHeight, cImageGapSize, cGridGapSize);
+  //  presenter.showGrids();
+ };
+
+var ImageGridsContainerComponent = React.createClass({
+  render: function() {
+    const props = this.props;
+    var gridComponents = this.props.grids.map(function(grid, index) {
+      return (
+        <GridComponent
+          className={'grid' + index}
+          key = {'grid' + index}
+          index = {index}
+          width = {this.props.gridActualWidth}
+          height = {this.props.gridActualHeight}
+          tileWidth = {this.props.singleTileWidth}
+          tileHeight = {this.props.singleTileHeight}
+          grid = {grid}
+          imageGapSize = {this.props.imageGapSize}
+        />
+      );
+    }, this)
+    return (
+      <div className="imageGridsContainer">
+        {gridComponents}
+      </div>
+    );
+  }
+});
+
+var GridComponent = React.createClass({
+  componentDidMount: function() {
+    $('.' + this.props.className).delay(500 + this.props.index * 75).animate({
+        left: '0px',
+        opacity: '1',
+      }, 200, "linear");
+  },
+  render: function() {
+    var gridStyle ={
+      width: this.props.width,
+      height: this.props.height,
+    }
+    const props = this.props;
+    var imageTiles = this.props.grid.map(function(columnOfImageTiles, columnIndex) {
+      const leftCoordinate = columnIndex * (this.props.tileWidth + this.props.imageGapSize);
+      return (
+        columnOfImageTiles.map(function(imageTile, rowIndex) {
+          // console.dir(imageTile);
+          if (imageTile !== undefined && !imageTile.isPlaceHolder()) {
+            return (
+              <ImageTileComponent
+                image={imageTile.getImage()}
+                quality={imageTile.getQuality()}
+                width={imageTile.getColsTaken() * this.props.tileWidth + ((imageTile.getColsTaken() - 1) * this.props.imageGapSize)}
+                height={imageTile.getRowsTaken() * this.props.tileHeight + ((imageTile.getRowsTaken() - 1) * this.props.imageGapSize)}
+                left={leftCoordinate}
+                top={rowIndex * (this.props.tileHeight + this.props.imageGapSize)}
+              />
+            )
+          } else {
+            return undefined;
+          }
+        }, this)
+      )
+    }, this);
+    return (
+      <div className={this.props.className + ' grid'} style={gridStyle}>
+        {imageTiles}
+      </div>
+    );
+  }
+});
+
+var ImageTileComponent = React.createClass({
+  handleClick: function() {
+    const imageOrigSrc = this.props.image.getOriginalImageSrc();
+        console.log(imageOrigSrc);
+        $('.image-overlay').attr('src', imageOrigSrc);
+        $('.div-overlay').show();
+        $('.div-overlay').delay(250).animate({
+          opacity: '1',
+        }, 200, "linear");
+  },
+  render: function() {
+    var imageTileStyle = {
+      height: this.props.height,
+      width: this.props.width,
+      left: this.props.left,
+      top: this.props.top,
+    };
+    return (
+      <div className="imageTile" style={imageTileStyle} onClick={this.handleClick}>
+        <ImageComponent src={this.props.image.getImageSrcByQuality(this.props.quality)} caption={this.props.image.getCaption()}/>
+      </div>
+    );
+  }
+});
+
+var ImageComponent = React.createClass({
+  render: function() {
+    return (
+      <img className="images" src={this.props.src} alt={this.props.caption}/>
+    );
+  }
+});
+
+var ImageOverlayContainerComponent = React.createClass({
+  handleClick: function() {
+    $('.div-overlay').delay(250).animate({
+      opacity: '0',
+    }, 200, "linear", function() {
+      $('.div-overlay').hide();
+    });
+  },
+  render: function() {
+    return (
+      <div className="div-overlay" onClick={this.handleClick}>
+        <img className="image-overlay" />
+      </div>
+    );
+  }
+});
 
 /**
  * ImageGridPlanner - The object responsible for planning the layout of all
@@ -134,13 +276,14 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
                     unit: [heightSizes['unit'][heightSizes['sizes'].length - 1]]};
     }
 
-    var bestFitImage;
-    var widthId = widthSizes['sizes'].length - 1;
-    var heightId = heightSizes['sizes'].length - 1;
-    var tilePortrait, imagePortrait, forcedToChoose, weightedSum;
-    while (!bestFitImage) {
+    var bestFitImageAndQuality;
+    var widthIndex = widthSizes['sizes'].length - 1;
+    var heightIndex = heightSizes['sizes'].length - 1;
+    var tileIsPortrait, imageIsPortrait, forcedToChoose, weightedSum, scale;
+    var bestFitImage, quality;
+    while (!bestFitImageAndQuality) {
 
-      var tileRatio = widthSizes['sizes'][widthId] / heightSizes['sizes'][heightId];
+      var tileRatio = widthSizes['sizes'][widthIndex] / heightSizes['sizes'][heightIndex];
 
       // 3 variables to consider when choosing the apropriate image quality
       //  1. ratio of the available tiles
@@ -150,52 +293,65 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
       //
       //     tiles       |    image      | forcedToChoose  |   quality
       //   -----------------------------------------------------------------
-      //    4 portrait      2 portrait        1 no            7 byHeight
+      //    4 portrait      2 portrait        1 no            7 byWidth
       //    4 portrait      2 portrait        0 yes           6 byHeight
       //    4 portrait      0 landscape       1 no            5 byWidth
       //    4 portrait      0 landscape       0 yes           4 byHeight
       //    0 landscape     2 portrait        1 no            3 byHeight
       //    0 landscape     2 portrait        0 yes           2 byWidth
-      //    0 landscape     0 landscape       1 no            1 byWidth
+      //    0 landscape     0 landscape       1 no            1 byHeight
       //    0 landscape     0 landscape       0 yes           0 byWidth
       //
       tileIsPortrait = (tileRatio < 1 ? 4 : 0);
       imageIsPortrait = (cImageProvider.isPortrait() ? 2 : 0);
-      forcedToChoose = ((widthId > 0 && heightId > 0) ? 1 : 0);
+      forcedToChoose = (forced ? 0 : 1);
 
       weightedSum = tileIsPortrait + imageIsPortrait + forcedToChoose;
 
       switch (weightedSum) {
-        case 7:
+        case 1:
         case 6:
         case 4:
         case 3:
-          bestFitImage = cImageProvider.getBestFitImageQualityByHeight(heightSizes['sizes'][heightId], forcedToChoose);
-          if (!bestFitImage) {
-            widthId--;
+          bestFitImageAndQuality = cImageProvider.getBestFitImageQualityByHeight(heightSizes['sizes'][heightIndex], forcedToChoose === 0);
+          if (!bestFitImageAndQuality) {
+            heightIndex--;
+          } else {
+            bestFitImage = bestFitImageAndQuality.image;
+            quality = bestFitImageAndQuality.quality;
+            scale = Math.round(bestFitImage.getSizeByQualityAndDimension(quality, bestFitImage.heightLabel) / heightSizes['sizes'][heightIndex] * 100) / 100;
+
+            // for (var heightIndex = heightSizes['sizes'].length - 1; heightIndex >= 0; heightIndex--) {
+            for (var widthIndex = 0; widthIndex < widthSizes['sizes'].length; widthIndex++) {
+              if (Math.round(bestFitImage.getSizeByQualityAndDimension(quality, bestFitImage.widthLabel) / scale) <= widthSizes['sizes'][widthIndex] || widthIndex === widthSizes['sizes'].length - 1) {
+                break;
+              }
+            }
           }
         break;
         case 5:
         case 2:
-        case 1:
+        case 7:
         case 0:
-          bestFitImage = cImageProvider.getBestFitImageQualityByWidth(widthSizes['sizes'][widthId], forcedToChoose);
-          if (!bestFitImage) {
-            heightId--;
+          bestFitImageAndQuality = cImageProvider.getBestFitImageQualityByWidth(widthSizes['sizes'][widthIndex], forcedToChoose === 0);
+          if (!bestFitImageAndQuality) {
+            widthIndex--;
+          } else {
+            bestFitImage = bestFitImageAndQuality.image;
+            quality = bestFitImageAndQuality.quality;
+            scale = Math.round(bestFitImage.getSizeByQualityAndDimension(quality, bestFitImage.widthLabel) / widthSizes['sizes'][widthIndex] * 100) / 100;
+
+            // for (var heightIndex = heightSizes['sizes'].length - 1; heightIndex >= 0; heightIndex--) {
+            for (var heightIndex = 0; heightIndex < heightSizes['sizes'].length; heightIndex++) {
+              if (Math.round(bestFitImage.getSizeByQualityAndDimension(quality, bestFitImage.heightLabel) / scale) <= heightSizes['sizes'][heightIndex] || heightIndex === heightSizes['sizes'].length - 1) {
+                break;
+              }
+            }
           }
         break;
       }
     }
-    if (bestFitImage) {
-      scale = Math.round(bestFitImage.getWidth() / widthSizes['sizes'][widthId] * 100) / 100;
-    }
-
-    for (var j = heightSizes['sizes'].length - 1; j >= 0; j--) {
-      if (Math.round(bestFitImage.getHeight() / scale) > heightSizes['sizes'][j] || j === 0) {
-        break;
-      }
-    }
-    return {image: bestFitImage, colsTaken: widthSizes['unit'][widthId], rowsTaken: heightSizes['unit'][j]};
+    return ImageTile(bestFitImage, quality, heightSizes['unit'][heightIndex], widthSizes['unit'][widthIndex]);
   };
 
   /**
@@ -218,10 +374,8 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
         if (gridLayout[colId][rowId] === undefined ||
            !gridLayout[colId][rowId].isPlaceHolder()) {
           if (cImageProvider.hasCurrent()) {
-            resultArray = planForCurrentImage(cColumns - colId, cRows - rowId, false);
-            tile = ImageTile(resultArray['image'], resultArray['rowsTaken'], resultArray['colsTaken'], colId, rowId);
-
-            addImageTileToGrid(gridLayout, tile);
+            tile = planForCurrentImage(cColumns - colId, cRows - rowId, false);
+            addImageTileToGrid(gridLayout, tile, colId, rowId);
             cImageProvider.moveToNext();
           } else {
             gridLayout[colId][rowId] = PlaceHolder(undefined);
@@ -266,10 +420,8 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
    * @param  {type} imageTile description
    * @return {type}           description
    */
-  function addImageTileToGrid(grid, imageTile) {
+  function addImageTileToGrid(grid, imageTile, colId, rowId) {
     // Tiles covered by the same image is reserved with a PlaceHolder object.
-    const colId = imageTile.getColId();
-    const rowId = imageTile.getRowId();
     const colsTaken = imageTile.getColsTaken();
     const rowsTaken = imageTile.getRowsTaken();
     for (var tileColId = 0; tileColId<colsTaken; tileColId++) {
@@ -277,33 +429,8 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
         grid[colId + tileColId][rowId + tileRowId] = PlaceHolder(imageTile);
       }
     }
-
     // The top left most tile of the image holds the info about the image.
     grid[colId][rowId] = imageTile;
-  }
-
-  /**
-   * refreshImageGrid - Expand the image in the grid representation
-   *
-   * @param  {[][]} grid            The grid
-   * @param  {ImageTile} imageTile  The image
-   * @param  {Int} rowsToFill       Number of rows to expand
-   * @param  {Int} colsToFill       Number of columns to expand
-   */
-  function expandImageGrid(grid, imageTile, argRowsToFill, argColsToFill) {
-    var tile;
-    var rowsToCover = imageTile.getRowsTaken() + (argRowsToFill ? argRowsToFill : 0);
-    var colsToCover = imageTile.getColsTaken() + (argColsToFill ? argColsToFill : 0);
-    if (!imageTile.getImage().isHighestQuality()) {
-      cImageProvider.setCurrentId(imageTile.getImage().getImageId());
-      console.log('image replan, quality not highest, rowToCover: ' + rowsToCover + ' colsToCover: ' + colsToCover);
-      var resultArray = planForCurrentImage(colsToCover, rowsToCover, true);
-      tile = ImageTile(resultArray['image'],resultArray['rowsTaken'],
-        resultArray['colsTaken'], imageTile.getColId(), imageTile.getRowId());
-    } else {
-      tile = ImageTile(imageTile.getImage(),rowsToCover, colsToCover, imageTile.getColId(), imageTile.getRowId());
-    }
-    addImageTileToGrid(grid, tile);
   }
 
   function findAndFixEmptySpace(grids) {
@@ -348,7 +475,7 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
         //2. Empty tile is at the first row of the grid => location 1,2,3 do not exist.
         //solution: resize the image which covered location 4.
         caseNr = 2;
-      } else if (tileAtLocationOne.getImage().getImageId() === tileAtLocationTwo.getImage().getImageId()) {
+      } else if (tileAtLocationOne.getImage().getImageIndex() === tileAtLocationTwo.getImage().getImageIndex()) {
         //3. Location 1 and 2 belong to the same image. location 4,6 is some other image(s).
         //solution: resize the image which covered location 4. (similar to case 2)
         caseNr = 3;
@@ -360,7 +487,7 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
       }
 
       var rowsToFill, colsToFill;
-      var origImageTile;
+      var imageTile;
       // Uses the switch conditionals because two cases can be combined. Could
       // also combine the if-statement above. But that results in longer conditional,
       // and harder to understand later.
@@ -369,7 +496,7 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
           // console.log('empty tile is at first colomn');
           rowsToFill = lastGrid[0].length - emptyTileCoordinate['rowId'];
           colsToFill = 0;
-          origImageTile = lastGrid[emptyTileCoordinate['colId']][emptyTileCoordinate['rowId'] - 1];
+          imageTile = lastGrid[emptyTileCoordinate['colId']][emptyTileCoordinate['rowId'] - 1];
         break;
         case 2:
           // console.log('empty tile is at first row, columns to fill: ' + colsToFill);
@@ -377,7 +504,7 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
         case 3:
           rowsToFill = 0;
           colsToFill = lastGrid.length - emptyTileCoordinate['colId'];
-          origImageTile = lastGrid[emptyTileCoordinate['colId'] - 1][emptyTileCoordinate['rowId']];
+          imageTile = lastGrid[emptyTileCoordinate['colId'] - 1][emptyTileCoordinate['rowId']];
         break;
         case 4:
           //Find out if there are images in the tiles below:
@@ -389,15 +516,40 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
           }
           colsToFill = 0;
           rowsToFill = rowId - emptyTileCoordinate['rowId'];
-          origImageTile = lastGrid[emptyTileCoordinate['colId']][emptyTileCoordinate['rowId'] - 1];
+          imageTile = lastGrid[emptyTileCoordinate['colId']][emptyTileCoordinate['rowId'] - 1];
         break;
       }
-      if (origImageTile.isPlaceHolder()) {
-        origImageTile = origImageTile.getTile();
+      if (imageTile.isPlaceHolder()) {
+        imageTile = imageTile.getTile();
       }
-      expandImageGrid(lastGrid, origImageTile, rowsToFill, colsToFill);
+
+      var imageTileCoor = locateImageTile(lastGrid, imageTile);
+      var rowsToCover = imageTile.getRowsTaken() + (rowsToFill ? rowsToFill : 0);
+      var colsToCover = imageTile.getColsTaken() + (colsToFill ? colsToFill : 0);
+
+      if (!imageTile.getQuality() === Image.quality_Original) {
+        console.log('image replan, quality not highest, rowToCover: ' + rowsToCover + ' colsToCover: ' + colsToCover);
+        cImageProvider.moveToIndex(origImageTile.getImage().getImageIndex());
+        imageTile = planForCurrentImage(colsToCover, rowsToCover, true);
+      } else {
+        imageTile.setRowsTaken(rowsToCover);
+        imageTile.setColsTaken(colsToCover);
+      }
+      addImageTileToGrid(lastGrid, imageTile, imageTileCoor[0], imageTileCoor[1]);
+
     }
     console.log('empty space not found or solved');
+  }
+
+  function locateImageTile(grid, imageTile) {
+    for (var cid = 0; cid < grid.length; cid++) {
+      for (var rid = 0; rid < grid[cid].length; rid++) {
+        if (grid[cid][rid] === imageTile) {
+          return [cid, rid];
+        }
+      }
+    }
+    return undefined;
   }
   return {
 
@@ -427,7 +579,6 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
     },
   }
 }
-
 
 /**
  * ImageGridPresenter - Responsible for rendering the grids on the browser
@@ -464,21 +615,22 @@ function ImageGridPresenter(argGrids, argImageProvider, argColumns, argRows,
     showGrids: function() {
       var tile, tileId;
       var tileWidth, tileHeight;
-      var image, imageId, imageSrc, imageOrigSrc, imageQuality;
+      var image, imageId, imageSrc, imageOrigSrc, imageQuality, imageCaption;
+      var imageTileWidth, imageTileHeight;
       var leftCoordinate, topCoordinate;
-      const $body = $('body');
 
+      const $body = $('body');
       // The ImageGrids are in this container.
-      $body.append('<div id="imageGridsContainer"> </div>');
+      $body.append('<div class="imageGridsContainer"> </div>');
+      $('.imageGridsContainer').css({
+        whiteSpace: "nowrap",
+        minWidth: "100%",
+      });
 
       for (var gridId = 0; gridId < cGrids.length; gridId++) {
-        $('#imageGridsContainer').css({
-          whiteSpace: "nowrap",
-          minWidth: "100%",
-        });
 
         // Insert the grids in the container
-        $('#imageGridsContainer').append('<div class="grids" id="grid' + gridId + '"> </div>');
+        $('.imageGridsContainer').append('<div class="grids" id="grid' + gridId + '"> </div>');
         for (var colId = 0; colId < cGrids[gridId].length; colId++) {
           leftCoordinate = colId * (cSingleTileWidth + cImageGapSize);
           for (var rowId = 0; rowId < cGrids[gridId][colId].length; rowId++) {
@@ -526,11 +678,9 @@ function ImageGridPresenter(argGrids, argImageProvider, argColumns, argRows,
 
             // Images are added to the tiles.
             image = tile.getImage();
-            imageId = image.getImageId();
-            imageQuality = image.getQuality();
-            imageSrc = cImageProvider.getImageSrc(imageId, imageQuality);
-            imageOrigSrc = cImageProvider.getOrigImageSrc(imageId);
-            imageCaption = cImageProvider.getImageCaption(imageId);
+            imageSrc = image.getImageSrcByQuality(tile.getQuality());
+            imageOrigSrc = image.getOriginalImageSrc();
+            imageCaption = image.getCaption();
             $tile.append('<img class="images" src="' + imageSrc + '" alt="' + imageCaption +'"> </img>');
             $tile.append('<div class="div-original" style="display: none;"">' + imageOrigSrc + '</div>')
             $('.images').css({
@@ -573,9 +723,9 @@ function ImageGridPresenter(argGrids, argImageProvider, argColumns, argRows,
       });
 
       $('.tiles').click(function() {
-        const origImageId = $(this).children('.div-original').text();
-        console.log(origImageId);
-        $('.img-overlay').attr('src', origImageId);
+        const imageOrigSrc = $(this).children('.div-original').text();
+        console.log(imageOrigSrc);
+        $('.img-overlay').attr('src', imageOrigSrc);
         $divOverlay.show();
         $divOverlay.delay(500).animate({
           opacity: '1',
@@ -596,10 +746,12 @@ function ImageGridPresenter(argGrids, argImageProvider, argColumns, argRows,
  */
 function ImageProvider(argImages) {
   const cImages = argImages;
-  const cQuality_Original = 'original';
-  const cQuality_Large = 'large';
-  const cQuality_Medium = 'medium';
-  const cQuality_Small = 'small';
+  const cQuality_OriginalLabel = 'original';
+  const cQuality_LargeLabel = 'large';
+  const cQuality_MediumLabel = 'medium';
+  const cQuality_SmallLabel = 'small';
+  const cLinksLabel = '_links';
+  const cCaptionLabel = 'caption';
 
   // The integer index pointer.
   var currentImageIndex = 0;
@@ -612,170 +764,74 @@ function ImageProvider(argImages) {
    * @param  {type} withMinimum description
    * @return {type}             description
    */
-  function getBestFitImageQualityByDimension(dimension, size, withMinimum) {
-    var currentImage = cImages[currentImageIndex]['_links'];
+  function getBestFitImageQualityByDimension(dimension, size, forcedToChoose) {
+    var currentImage = Image(currentImageIndex, cImages[currentImageIndex]);
     var quality;
-    if (currentImage[cQuality_Small][dimension] >= size) {
-      quality = cQuality_Small;
-    } else if (currentImage[cQuality_Medium][dimension] >= size) {
-      quality = cQuality_Medium;
-    } else if (currentImage[cQuality_Large][dimension] >= size) {
-      quality = cQuality_Large;
-    } else if (currentImage[cQuality_Original][dimension] >= size || withMinimum) {
-      quality = cQuality_Original;
+    if (currentImage.getSizeByQualityAndDimension(currentImage.quality_Small, dimension) >= size) {
+      quality = currentImage.quality_Small;
+    } else if (currentImage.getSizeByQualityAndDimension(currentImage.quality_Medium, dimension) >= size) {
+      quality = currentImage.quality_Medium;
+    } else if (currentImage.getSizeByQualityAndDimension(currentImage.quality_Large, dimension) >= size) {
+      quality = currentImage.quality_Large;
+    } else if (currentImage.getSizeByQualityAndDimension(currentImage.quality_Original, dimension) >= size || forcedToChoose) {
+      quality = currentImage.quality_Original;
     } else {
       return undefined;
     }
-    return Image(currentImageIndex, currentImage[quality]['width'],
-      currentImage[quality]['height'], quality);
+    return {image: currentImage, quality: quality};
   }
 
-  /**
-   * @return {type}  description
-   */
   function getSmallWidth() {
-    return cImages[currentImageIndex]['_links'][cQuality_Small]['width'];
+    return cImages[currentImageIndex]['_links']['small']['width'];
   }
-
-  /**
-   * @return {type}  description
-   */
   function getSmallHeight() {
-    return cImages[currentImageIndex]['_links'][cQuality_Small]['height'];
+    return cImages[currentImageIndex]['_links']["small"]['height'];
   }
 
-  return {
-
-    /**
-     * length - description
-     *
-     * @return {type}  description
-     */
+  var self = {
     length: function() {
       return cImages.length;
     },
-
-    /**
-     * getCurrentId - description
-     *
-     * @return {type}  description
-     */
     getCurrentId: function() {
       return currentImageIndex;
     },
-
-    /**
-     * setCurrentId - description
-     *
-     * @param  {type} imageId description
-     * @return {type}         description
-     */
-    setCurrentId: function(imageId) {
+    moveToIndex: function(imageId) {
       currentImageIndex = imageId;
     },
-
-    /**
-     * moveToFirst - description
-     *
-     * @return {type}  description
-     */
     moveToFirst: function() {
       currentImageIndex = 0;
       return this.hasCurrent();
     },
-
-    /**
-     * moveToNext - description
-     *
-     * @return {type}  description
-     */
     moveToNext: function() {
       currentImageIndex++;
       return this.hasCurrent();
     },
-
-    /**
-     * getCurrentRatio - description
-     *
-     * @return {type}  description
-     */
     getCurrentRatio: function() {
       return Math.round(getSmallWidth() / getSmallHeight() * 10) / 10;
     },
-
-    /**
-     * isLandscape - description
-     *
-     * @return {type}  description
-     */
     isPortrait: function() {
       return getSmallWidth() <= getSmallHeight();
     },
-
-    /**
-     * getImageSrc - description
-     *
-     * @param  {type} argIndex   description
-     * @param  {type} argQuality description
-     * @return {type}            description
-     */
-    getImageSrc: function(argIndex, argQuality) {
-      return cImages[argIndex]['_links'][argQuality]['href'];
+    getImageSrc: function(argQuality) {
+      return cImages[currentImageIndex]['_links'][argQuality]['href'];
     },
-
-
-    /**
-     * getOrigImageSrc - description
-     *
-     * @param  {type} argIndex   description
-     * @param  {type} argQuality description
-     * @return {type}            description
-     */
-    getOrigImageSrc: function(argIndex) {
-      return cImages[argIndex]['_links'][cQuality_Original]['href'];
+    getOrigImageSrc: function() {
+      return cImages[currentImageIndex]['_links'][cQuality_Original]['href'];
     },
-
-    /**
-     * getImageCaption - description
-     *
-     * @param  {type} argIndex description
-     * @return {type}          description
-     */
-    getImageCaption: function(argIndex) {
-      return cImages[argIndex]['caption'];
+    getImageCaption: function() {
+      return cImages[currentImageIndex]['caption'];
     },
-
-    /**
-     * hasCurrent - description
-     *
-     * @return {type}  description
-     */
     hasCurrent: function() {
       return currentImageIndex < cImages.length;
     },
-
-    /**
-     * getBestFitImageQualityByWidth - description
-     *
-     * @param  {type} argSize        description
-     * @param  {type} argWithMinimum description
-     * @return {type}                description
-     */
-    getBestFitImageQualityByWidth: function(argSize, argWithMinimum) {
-      return getBestFitImageQualityByDimension('width', argSize, argWithMinimum);
+    getBestFitImageQualityByWidth: function(argSize, argForcedToChoose) {
+      return getBestFitImageQualityByDimension('width', argSize, argForcedToChoose);
     },
-
-    /**
-     * getBestFitImageQualityByHeight - description
-     *
-     * @param  {type} argSize        description
-     * @param  {type} argWithMinimum description
-     * @return {type}                description
-     */
-    getBestFitImageQualityByHeight: function(argSize, argWithMinimum) {
-      return getBestFitImageQualityByDimension('height', argSize, argWithMinimum);
+    getBestFitImageQualityByHeight: function(argSize, argForcedToChoose) {
+      return getBestFitImageQualityByDimension('height', argSize, argForcedToChoose);
     },
   }
+  return self;
 }
 
 /**
@@ -787,93 +843,35 @@ function ImageProvider(argImages) {
  * @param  {type} argColsTaken description
  * @return {type}              description
  */
-function ImageTile(argImage, argRowsTaken, argColsTaken, argColId, argRowId) {
+function ImageTile(argImage, argQuality, argRowsTaken, argColsTaken) {
   const cImage = argImage;
   var cRowsTaken = argRowsTaken;
   var cColsTaken = argColsTaken;
-  const cColId = argColId;
-  const cRowId = argRowId;
+  const cQuality = argQuality;
   return {
-
-    /**
-     * getImage - description
-     *
-     * @return {type}  description
-     */
     getImage: function() {
       return cImage;
     },
-
-    /**
-     * isPlaceHolder - description
-     *
-     * @return {type}  description
-     */
     isPlaceHolder: function() {
       return false;
     },
-
-    /**
-     * isPlaceHolder - description
-     *
-     * @return {type}  description
-     */
     isEmptyPlaceHolder: function() {
       return false;
     },
-
-    /**
-     * getRowsTaken - description
-     *
-     * @return {type}  description
-     */
     getRowsTaken: function() {
       return cRowsTaken;
     },
-
-    /**
-     * getColsTaken - description
-     *
-     * @return {type}  description
-     */
     getColsTaken: function() {
       return cColsTaken;
     },
-
-    /**
-     * getRowsTaken - description
-     *
-     * @return {type}  description
-     */
     setRowsTaken: function(argRowsTaken) {
       cRowsTaken = argRowsTaken;
     },
-
-    /**
-     * getColsTaken - description
-     *
-     * @return {type}  description
-     */
     setColsTaken: function(argColsTaken) {
       cColsTaken = argColsTaken;
     },
-
-    /**
-     * getRowId - description
-     *
-     * @return {type}  description
-     */
-    getRowId: function() {
-      return cRowId;
-    },
-
-    /**
-     * getColId - description
-     *
-     * @return {type}  description
-     */
-    getColId: function() {
-      return cColId;
+    getQuality: function() {
+      return cQuality;
     },
   }
 }
@@ -887,31 +885,35 @@ function ImageTile(argImage, argRowsTaken, argColsTaken, argColId, argRowId) {
  * @param  {type} argQuality description
  * @return {type}            description
  */
-function Image(argImageId, argWidth, argHeight, argQuality) {
-  const cImageId = argImageId;
-  const cImageQuality = argQuality;
-  const cWidth = argWidth;
-  const cHeight = argHeight;
-  const cQuality_Original = 'original';
-  const cQuality_Large = 'large';
-  const cQuality_Medium = 'medium';
-  const cQuality_Small = 'small';
+function Image(argImageIndex, argImageInfo) {
+  const cImageIndex = argImageIndex;
+  const cImageInfo = argImageInfo;
+  const cLinksLabel = '_links';
+  const cCaptionLabel = 'caption';
+  const cHrefLabel = 'href';
 
   return {
-    getImageId: function() {
-      return cImageId;
+    quality_Original: 'original',
+    quality_Large: 'large',
+    quality_Medium: 'medium',
+    quality_Small: 'small',
+    widthLabel: 'width',
+    heightLabel: 'height',
+
+    getImageIndex: function() {
+      return cImageIndex;
     },
-    getQuality: function() {
-      return cImageQuality;
+    getImageSrcByQuality: function(quality) {
+      return cImageInfo[cLinksLabel][quality][cHrefLabel];
     },
-    getHeight: function() {
-      return cHeight;
+    getOriginalImageSrc: function() {
+      return cImageInfo[cLinksLabel][this.quality_Original][cHrefLabel];
     },
-    getWidth: function() {
-      return cWidth;
+    getCaption: function() {
+      return cImageInfo[cCaptionLabel];
     },
-    isHighestQuality: function() {
-      return cImageQuality === cQuality_Original;
+    getSizeByQualityAndDimension: function(quality, dimension) {
+      return cImageInfo[cLinksLabel][quality][dimension];
     },
   }
 }
@@ -946,13 +948,13 @@ function PlaceHolder(argTile) {
  */
 function debugGrid(grids) {
   console.log(' grid debug: \n rowsTaken : columnsTaken \n ');
-  log = '';
+  var log = '';
   for (var gid = 0; gid<grids.length; gid++) {
     console.log('grid' + gid + '  ---------');
     for (var rid = 0; rid<grids[gid][0].length; rid++) {
       log += rid + ': ';
       for ( var cid = 0; cid<grids[gid].length; cid++) {
-        tile = grids[gid][cid][rid];
+         var tile = grids[gid][cid][rid];
         if (tile === undefined) {
           log += 'und ';
         } else if (!tile.isPlaceHolder()) {
@@ -970,41 +972,9 @@ function debugGrid(grids) {
   }
 }
 
-/**
- * include - this function adds the provided script source to the DOM.
- *
- * @param  {type} filename Js source address
- * @param  {type} onload   Callback function after loaded
- */
-function include(filename, onload) {
-    var head = document.getElementsByTagName('head')[0];
-    var script = document.createElement('script');
-    script.src = filename;
-    script.type = 'text/javascript';
-    script.onload = script.onreadystatechange = function() {
-        if (script.readyState) {
-            if (script.readyState === 'complete' || script.readyState === 'loaded') {
-                script.onreadystatechange = null;
-                onload();
-            }
-        }
-        else {
-            onload();
-        }
-    };
-    head.appendChild(script);
-}
-
-/**
- * include - Add jQuery to the DOM.
- *
- * @param  {type} 'https://ajax.googleapis.com/ajax/libs/jquery/2.2.2/jquery.min.js' description
- */
-include('jquery.min.js', function() {
-    $(document).ready(function() {
-        // $.getJSON("waves.json", function(data) {
-        $.getJSON("youngpeople.json", function(data) {
-          imageGrid(data, 8,8,800,800);
-        })
-    });
+$(document).ready(function() {
+    // $.getJSON("data/waves.json", function(data) {
+    // $.getJSON("data/youngpeople.json", function(data) {
+    //   imageGrid(data, 8,8,800,800);
+    // })
 });
