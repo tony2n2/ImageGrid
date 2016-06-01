@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * The script unfortunately cannot generate the imageGrids that are identical to
  * one given in the example pdf file. There are no clear rules defined for the
@@ -47,7 +49,8 @@
    }
    var provider = ImageProvider(argImages);
 
-   var gridPlanner = ImageGridPlanner(provider, argColumns, argRows, argGridWidth, argGridHeight, cImageGapSize);
+   var gridPlanner = ImageGridPlanner(provider, argColumns, argRows, argGridWidth,
+                                      argGridHeight, cImageGapSize);
    const grids = gridPlanner.plan();
 
    if (grids === undefined) {
@@ -78,7 +81,8 @@
      </div>,
      document.getElementById('content')
    );
-  //  var presenter = ImageGridPresenter(grids, provider, argColumns, argRows, argGridWidth, argGrindHeight, cImageGapSize, cGridGapSize);
+  //  var presenter = ImageGridPresenter(grids, provider, argColumns, argRows,
+  //              argGridWidth, argGrindHeight, cImageGapSize, cGridGapSize);
   //  presenter.showGrids();
  };
 
@@ -131,8 +135,10 @@ var GridComponent = React.createClass({
               <ImageTileComponent
                 image={imageTile.getImage()}
                 quality={imageTile.getQuality()}
-                width={imageTile.getColsTaken() * this.props.tileWidth + ((imageTile.getColsTaken() - 1) * this.props.imageGapSize)}
-                height={imageTile.getRowsTaken() * this.props.tileHeight + ((imageTile.getRowsTaken() - 1) * this.props.imageGapSize)}
+                width={imageTile.getColsTaken() * this.props.tileWidth +
+                  ((imageTile.getColsTaken() - 1) * this.props.imageGapSize)}
+                height={imageTile.getRowsTaken() * this.props.tileHeight +
+                  ((imageTile.getRowsTaken() - 1) * this.props.imageGapSize)}
                 left={leftCoordinate}
                 top={rowIndex * (this.props.tileHeight + this.props.imageGapSize)}
               />
@@ -170,7 +176,8 @@ var ImageTileComponent = React.createClass({
     };
     return (
       <div className="imageTile" style={imageTileStyle} onClick={this.handleClick}>
-        <ImageComponent src={this.props.image.getImageSrcByQuality(this.props.quality)} caption={this.props.image.getCaption()}/>
+        <ImageComponent src={this.props.image.getImageSrcByQuality(
+          this.props.quality)} caption={this.props.image.getCaption()}/>
       </div>
     );
   }
@@ -214,7 +221,8 @@ var ImageOverlayContainerComponent = React.createClass({
  * @param  {Int} argGridHeight    Height of a single grid
  * @param  {Int} argGapSpace      Space between two images in a grid
  */
-function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, argGridHeight, argGapSpace) {
+function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth,
+                          argGridHeight, argGapSpace) {
   const cImageProvider = argImageProvider;
   const cColumns = argColumns;
   const cRows = argRows;
@@ -308,22 +316,33 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
 
       weightedSum = tileIsPortrait + imageIsPortrait + forcedToChoose;
 
+      // TODO: Remove duplicate code
       switch (weightedSum) {
         case 1:
         case 6:
         case 4:
         case 3:
-          bestFitImageAndQuality = cImageProvider.getBestFitImageQualityByHeight(heightSizes['sizes'][heightIndex], forcedToChoose === 0);
+          bestFitImageAndQuality = cImageProvider.getBestFitImageQualityByHeight(
+              heightSizes['sizes'][heightIndex], forcedToChoose === 0);
           if (!bestFitImageAndQuality) {
+            //debugger;
             heightIndex--;
+            if (heightIndex === 0) {
+              forcedToChoose = 0;
+            }
           } else {
             bestFitImage = bestFitImageAndQuality.image;
             quality = bestFitImageAndQuality.quality;
-            scale = Math.round(bestFitImage.getSizeByQualityAndDimension(quality, bestFitImage.heightLabel) / heightSizes['sizes'][heightIndex] * 100) / 100;
+            scale = Math.round(bestFitImage.getSizeByQualityAndDimension(
+              quality, bestFitImage.heightLabel) / heightSizes['sizes'][heightIndex] * 100) / 100;
 
             // for (var heightIndex = heightSizes['sizes'].length - 1; heightIndex >= 0; heightIndex--) {
+
+            // Find the other dimension after one is determined
             for (var widthIndex = 0; widthIndex < widthSizes['sizes'].length; widthIndex++) {
-              if (Math.round(bestFitImage.getSizeByQualityAndDimension(quality, bestFitImage.widthLabel) / scale) <= widthSizes['sizes'][widthIndex] || widthIndex === widthSizes['sizes'].length - 1) {
+              if (Math.round(bestFitImage.getSizeByQualityAndDimension(
+                quality, bestFitImage.widthLabel) / scale) <= widthSizes['sizes'][widthIndex] ||
+                 widthIndex === widthSizes['sizes'].length - 1) {
                 break;
               }
             }
@@ -333,17 +352,27 @@ function ImageGridPlanner(argImageProvider, argColumns, argRows, argGridWidth, a
         case 2:
         case 7:
         case 0:
-          bestFitImageAndQuality = cImageProvider.getBestFitImageQualityByWidth(widthSizes['sizes'][widthIndex], forcedToChoose === 0);
+          bestFitImageAndQuality = cImageProvider.getBestFitImageQualityByWidth(
+            widthSizes['sizes'][widthIndex], forcedToChoose === 0);
           if (!bestFitImageAndQuality) {
+            //debugger;
             widthIndex--;
+            if (widthIndex === 0) {
+              forcedToChoose = 0;
+            }
           } else {
             bestFitImage = bestFitImageAndQuality.image;
             quality = bestFitImageAndQuality.quality;
-            scale = Math.round(bestFitImage.getSizeByQualityAndDimension(quality, bestFitImage.widthLabel) / widthSizes['sizes'][widthIndex] * 100) / 100;
+            scale = Math.round(bestFitImage.getSizeByQualityAndDimension(
+              quality, bestFitImage.widthLabel) / widthSizes['sizes'][widthIndex] * 100) / 100;
 
             // for (var heightIndex = heightSizes['sizes'].length - 1; heightIndex >= 0; heightIndex--) {
+
+            // Find the other dimension after one is determined
             for (var heightIndex = 0; heightIndex < heightSizes['sizes'].length; heightIndex++) {
-              if (Math.round(bestFitImage.getSizeByQualityAndDimension(quality, bestFitImage.heightLabel) / scale) <= heightSizes['sizes'][heightIndex] || heightIndex === heightSizes['sizes'].length - 1) {
+              if (Math.round(bestFitImage.getSizeByQualityAndDimension(
+                quality, bestFitImage.heightLabel) / scale) <= heightSizes['sizes'][heightIndex] ||
+                 heightIndex === heightSizes['sizes'].length - 1) {
                 break;
               }
             }
@@ -973,8 +1002,8 @@ function debugGrid(grids) {
 }
 
 $(document).ready(function() {
-    // $.getJSON("data/waves.json", function(data) {
+    $.getJSON("data/waves.json", function(data) {
     // $.getJSON("data/youngpeople.json", function(data) {
-    //   imageGrid(data, 8,8,800,800);
-    // })
+      imageGrid(data, 4,4,400,400);
+    })
 });
